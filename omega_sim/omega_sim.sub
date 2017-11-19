@@ -1,0 +1,33 @@
+# Richard Jones
+# March 12, 2013
+#
+executable = omega_sim.bash
+log = omega_sim.log
+notification = never
+universe = vanilla
+should_transfer_files = yes
+transfer_input_files = decayt-signal.dat,decayt-background.dat,decayt-background2.dat,decayt-background3.dat,decayt-background4.dat,mcwrap.x86_64,gradphi.x86_64,control.in,cebaf.geom,mctuplet.x86_64,h2root.x86_64,x509_user_proxy
+WhenToTransferOutput = ON_EXIT
+on_exit_hold = (ExitBySignal==False)&&(ExitCode!=0)
+on_exit_remove = (ExitBySignal==False)&&(ExitCode==0)
+#requirements = Arch =!= timex
+output = logs/stdout.$(PROCESS)
+error = logs/stderr.$(PROCESS)
+arguments = $(PROCESS) 1 2p
+queue 101
+output = logs1/stdout.$(PROCESS)
+error = logs1/stderr.$(PROCESS)
+arguments = $(PROCESS) 1 3D+p
+queue 101
+output = logs2/stdout.$(PROCESS)
+error = logs2/stderr.$(PROCESS)
+arguments = $(PROCESS) 1 2D+p
+queue 101
+output = logs3/stdout.$(PROCESS)
+error = logs3/stderr.$(PROCESS)
+arguments = $(PROCESS) 1 2D+n
+queue 101
+output = logs4/stdout.$(PROCESS)
+error = logs4/stderr.$(PROCESS)
+arguments = $(PROCESS) 1 2D0p
+queue 101

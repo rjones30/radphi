@@ -1,0 +1,17 @@
+# Richard Jones
+# March 12, 2013
+#
+executable = omega_gen.bash
+log = omega_gen.log
+notification = never
+universe = vanilla
+should_transfer_files = yes
+transfer_input_files = decayt-signal.dat,decayt-background.dat,decayt-background2.dat,decayt-background3.dat,decayt-background4.dat,mcwrap.x86_64,gradphi.x86_64,control.in,cebaf.geom,mctuplet.x86_64,h2root.x86_64,x509_user_proxy
+WhenToTransferOutput = ON_EXIT
+on_exit_hold = (ExitBySignal==False)&&(ExitCode!=0)
+on_exit_remove = (ExitBySignal==False)&&(ExitCode==0)
+#requirements = Arch =!= timex
+output = logs5/stdout.$(PROCESS)
+error = logs5/stderr.$(PROCESS)
+arguments = $(PROCESS) 1 2p
+queue 101
