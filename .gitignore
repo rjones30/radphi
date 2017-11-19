@@ -25,6 +25,9 @@
 *.x86_64
 *.kumacold
 last.kumac
+*.depend
+*/bin.linux
+*/bin.solaris
 *.metafile
 */logs*
 */work*
