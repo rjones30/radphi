@@ -1,0 +1,17 @@
+# Richard Jones
+# March 12, 2013
+#
+executable = pwa_omega.bash
+log = pwa_omega.log
+notification = never
+universe = vanilla
+should_transfer_files = yes
+transfer_input_files = PWAmcgen.txt,PWAtool_cc.so,PWAtool_cc_ACLiC_dict_rdict.pcm,PWAomega.py,setup.sh
+WhenToTransferOutput = ON_EXIT
+on_exit_hold = (ExitBySignal==False)&&(ExitCode!=0)
+on_exit_remove = (ExitBySignal==False)&&(ExitCode==0)
+output = logs.d/stdout.$(PROCESS)
+error = logs.d/stderr.$(PROCESS)
+arguments = $(PROCESS)
+RequestCpus=3
+queue 90
