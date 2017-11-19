@@ -16,5 +16,7 @@
 *.dat
 .*
 *.db
+*.png
+*.pdf
 public_html
 CVS
