@@ -44,6 +44,7 @@ class mlfitter {
    int Do(const char *cmd, double arg1, double arg2);
    int Do(const char *cmd, double arg1, double arg2, double arg3);
    int Do(const char *cmd, double arg1, double arg2, double arg3, double arg4);
+   int Fit(int redundancy=2, int maxtries=9);
 
    double GetW(double costheta, double phi) const;
    double W11(double costheta, double phi) const;

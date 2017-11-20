@@ -30,10 +30,11 @@
 #include <fstream>
 #include <math.h>
 #include <string>
+#include <limits>
 
-TString mcsim_templ("/home/radphi/work1/mctuple_sim_skim-%d.root");
-TString mcgen_templ("/home/radphi/work1/mctuple_gen_skim-%d.root");
-TString expdata_templ("/home/radphi/work1/ntuple_real_skim-%2.2d.root");
+TString mcsim_templ("/home/radphi/omega_SDME/mctuple_sim_skim-%d.root");
+TString mcgen_templ("/home/radphi/omega_SDME/mctuple_gen_skim-%d.root");
+TString expdata_templ("/home/radphi/omega_SDME/ntuple_real_skim-%2.2d.root");
 
 const int nbins_cost = 50;
 const int nbins_phi = 50;
@@ -642,15 +643,67 @@ void mlfitter::RandomizeParams()
 {
    // Generate random values for the model parameters
    // and call GetFCN to compute the model distribution
-   // for these random parameters.
+   // for these random parameters. The scale for the
+   // parameter size is given by the last value for that
+   // parameter, or unity if the last value is zero.
 
    double par[4];
+   double pscale = fLastParam[0] + fLastParam[1];
    for (int i=0; i < 4; ++i) {
       par[i] = fRandom->Rndm();
+      if (pscale > 0) {
+         if (i < 2)
+            par[i] = (2*par[i]) * pscale;
+         else
+            par[i] = (2*par[i] - 1) * pscale;
+      }
       Do("SET PAR", i+1 , par[i]);
    }
    GetFCN(par[0], par[1], par[2], par[3]);
    Do("SHOW FCN");
+}
+
+int mlfitter::Fit(int redundancy, int maxtries)
+{
+   // Find the maximum likelihood values for the model parameters,
+   // starting from the last parameter values seen by the fitter,
+   // by seeking the minimum of the NLL function using the migrad
+   // algorithm of Minuit. Migrad commands are issued one after
+   // another until either (a) <redundancy> attempts are successful
+   // and terminate at the same minimum, or (b) the number of tries
+   // exceeds maxtries. Return value is 0 for case (a), and nonzero
+   // for case (b). Upon success, the Minuit object returned by
+   // GetMinuit can be queried for the final parameter values and
+   // errors, the estimated error matrix, correlations, EDM, etc.
+
+   double finalFCN(std::numeric_limits<double>::max());
+   double tolerFCN = 0.01;
+   int goodfinds = 0;
+   for (int tries=0; tries < maxtries; ++tries) {
+      RandomizeParams();
+      int res = Do("migrad");
+      std::cout << "============================"
+                << "============================"
+                << "============================"
+                << " " << res << std::endl;
+      if (res == 0) {
+         Do("call 4");
+         if (fLastFCN < finalFCN + tolerFCN) {
+            if (++goodfinds == redundancy) {
+               return 0;
+            }
+            else if (fLastFCN < finalFCN) {
+               finalFCN = fLastFCN;
+            }
+         }
+         std::cout << "goodfinds=" << goodfinds
+                   << std::setprecision(15)
+                   << ", finalFCN=" << finalFCN
+                   << ", lastFCN=" << fLastFCN
+                   << std::endl;
+      }
+   }
+   return 1;
 }
 
 void mlfitter::Print() const
