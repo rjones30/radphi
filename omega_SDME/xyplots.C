@@ -1,5 +1,6 @@
 #include <TROOT.h>
 #include <TH2D.h>
+#include <TCanvas.h>
 
 #include "mlfitter.h"
 
@@ -105,7 +106,7 @@ TH2D *Wplot(mlfitter &fit)
    return wplot;
 }
 
-void etch(TH2D *h2, double ethresh)
+void etch2D(TH2D *h2, double ethresh)
 {
    // It is assumed that input histogram h2 contains an inner simply connected
    // region with non-zero contents, which tapers off to zero around the edges.
@@ -121,12 +122,22 @@ void etch(TH2D *h2, double ethresh)
          for (int i=1; i <= 51; ++i) {
             double e = h2->GetBinContent(i,j);
             if (e > 0 && e < ethresh) {
-               if (h2->GetBinContent(i,j+1) < ethresh ||
-                   h2->GetBinContent(i,j-1) == 0)
+               if ((h2->GetBinContent(i,j+1) < ethresh &&
+                    h2->GetBinContent(i,j-1) == 0) ||
+                   (h2->GetBinContent(i,j-1) < ethresh &&
+                    h2->GetBinContent(i,j+1) == 0))
                {
                   h2->SetBinContent(i,j,0);
                   ++netched;
                }
+               else if (h2->GetBinContent(i,j+1) < ethresh &&
+                        h2->GetBinContent(i,j-1) < ethresh &&
+                        h2->GetBinContent(i-1,j-1) == 0 &&
+                        h2->GetBinContent(i-1,j-1) == 0)
+               {
+                  h2->SetBinContent(i,j,0);
+                  ++netched;
+               }   
                else
                   break;
             }
@@ -136,8 +147,18 @@ void etch(TH2D *h2, double ethresh)
          for (int i=50; i >= 1; --i) {
             double e = h2->GetBinContent(i,j);
             if (e > 0 && e < ethresh) {
-               if (h2->GetBinContent(i,j+1) < ethresh ||
-                   h2->GetBinContent(i,j-1) == 0)
+               if ((h2->GetBinContent(i,j+1) < ethresh &&
+                    h2->GetBinContent(i,j-1) == 0) ||
+                   (h2->GetBinContent(i,j-1) < ethresh &&
+                    h2->GetBinContent(i,j+1) == 0))
+               {
+                  h2->SetBinContent(i,j,0);
+                  ++netched;
+               }
+               else if (h2->GetBinContent(i,j+1) < ethresh &&
+                        h2->GetBinContent(i,j-1) < ethresh &&
+                        h2->GetBinContent(i+1,j-1) == 0 &&
+                        h2->GetBinContent(i+1,j-1) == 0)
                {
                   h2->SetBinContent(i,j,0);
                   ++netched;
@@ -150,4 +171,67 @@ void etch(TH2D *h2, double ethresh)
          }
       }
    }
+}
+
+TH2D *select2D(double ethresh=0)
+{
+   // Apply an acceptance correction to the real data decay angles
+   // distribution hdata (see xyplots above) and then etch the
+   // boundaries of this plot up to threshold value ethresh. If
+   // no ethresh is given, display an interactive loop to allow
+   // the user to chose the best threshold.
+
+   TH2D *haccept0 = (TH2D*)gROOT->FindObject("haccept0");
+   TH2D *hdata = (TH2D*)gROOT->FindObject("hdata");
+   if (haccept0 == 0 || hdata == 0) {
+      std::cerr << "Error in genR2D - must call mlfitter::LoadAccept"
+                << " and LoadRealData() before invoking genR2D."
+                << std::endl;
+      return 0;
+   }
+   TH2D *hacor = (TH2D*)haccept0->Clone("hacor");
+   zero2D(hacor, 0.1 * haccept0->GetMaximum());
+   TH2D *hdcor = (TH2D*)hdata->Clone("hdcor");
+   zero2D(hdcor, 1e-9);
+   hdcor->Divide(hacor);
+   TH2D *hdsel = (TH2D*)hdata->Clone("hdsel");
+
+   TCanvas *c1 = (TCanvas*)gROOT->FindObject("c1");
+   if (c1 == 0)
+      c1 = new TCanvas("c1", "c1");
+   if (ethresh == 0) {
+      TString ans("no");
+      while (true) {
+         etch2D(hdcor, ethresh);
+         mask2D(hdsel, hdcor);
+         hdcor->Draw("colz");
+         c1->Update();
+         std::cout << "ethresh=" << ethresh 
+                << ", event fraction: "
+                << hdsel->Integral() / hdata->Integral()
+                << ", ethresh, +/-delta, or q to quit: ";
+         std::cin >> ans;
+         if (ans(0) == '+' || ans(0) == '-')
+            ethresh += ans.Atof();
+         else if (ans.IsFloat())
+            ethresh = ans.Atof();
+         else if (ans == "q")
+            break;
+         hacor->Delete();
+         hacor = (TH2D*)haccept0->Clone("hacor");
+         zero2D(hacor, 0.1 * haccept0->GetMaximum());
+         hdcor->Delete();
+         hdcor = (TH2D*)hdata->Clone("hdcor");
+         zero2D(hdcor, 1e-9);
+         hdcor->Divide(hacor);
+         hdsel->Delete();
+         hdsel = (TH2D*)hdata->Clone("hdsel");
+      }
+   }
+   else {
+      etch2D(hdcor, ethresh);
+      mask2D(hdsel, hdcor);
+      hdcor->Draw("colz");
+   }
+   return hdcor;
 }
