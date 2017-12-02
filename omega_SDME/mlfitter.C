@@ -50,8 +50,8 @@ mlfitter::mlfitter()
    SetLimits_Ebeam(0., 100.0);
    SetLimits_Emiss(-0.2, 0.5);
    SetLimits_tabs(-100., 0.5);
-   SetLimits_mass(0.74, 0.86);
-   SetLimits_dphi(-60., +60.);
+   SetLimits_dphi(-60., 60., -60., 60.);
+   SetLimits_mass(0.70, 0.90, 0.60, 1.0);
    fRandom = new TRandom3(0);
 }
 
@@ -63,15 +63,18 @@ void mlfitter::LoadAccept()
    // Form an acceptance histogram from simulated events.
  
    TString haccept;
-   if (fHaccept == 0)
+   if (fHaccept == 0) {
       for (int n=0; n < 99999; ++n) {
          haccept.Form("haccept%d", n);
          if (gROOT->FindObject(haccept) == 0)
             break;
       }
-   fHaccept = new TH2D(haccept, "MC acceptance phi vs cos(theta)",
-                       nbins_cost, -1, 1, nbins_phi, -M_PI, M_PI);
-   fHaccept->Sumw2();
+      fHaccept = new TH2D(haccept, "MC acceptance phi vs cos(theta)",
+                          nbins_cost, -1, 1, nbins_phi, -M_PI, M_PI);
+      fHaccept->SetStats(0);
+      fHaccept->Sumw2();
+   }
+   fHaccept->Reset();
 
    // sum reconstructed MC for these cuts
    fChain = ChainMCsim(mcsim_templ);
@@ -79,11 +82,22 @@ void mlfitter::LoadAccept()
    while (fReader.Next()) {
       if ( *Ebeam > fEbeamlim[0] && *Ebeam < fEbeamlim[1] &&
            *Emiss > fEmisslim[0] && *Emiss < fEmisslim[1] &&
-            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] &&
-            *dphi > fdphilim[0]  &&  *dphi < fdphilim[1] &&
-             *m3g > fmasslim[0]  &&   *m3g < fmasslim[1] )
+            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] )
       {
-         fHaccept->Fill(*costhetahel, *phihel, *weight);
+         double wgt_dphi, wgt_m3g;
+         if (*dphi > fdphilim[0]  &&  *dphi < fdphilim[1])
+            wgt_dphi = 1;
+         else if (*dphi > fdphiban[0]  &&  *dphi < fdphiban[1])
+            wgt_dphi = -fdphibanwgt;
+         else
+            wgt_dphi = 0;
+         if (*m3g > fmasslim[0]  &&   *m3g < fmasslim[1])
+            wgt_m3g = 1;
+         else if (*m3g > fmassban[0]  &&   *m3g < fmassban[1])
+            wgt_m3g = -fmassbanwgt;
+         else
+            wgt_m3g = 0;
+         fHaccept->Fill(*costhetahel, *phihel, *weight * wgt_dphi * wgt_m3g);
       }
    }
 
@@ -95,11 +109,22 @@ void mlfitter::LoadAccept()
    while (fReader.Next()) {
       if ( *Ebeam > fEbeamlim[0] && *Ebeam < fEbeamlim[1] &&
            *Emiss > fEmisslim[0] && *Emiss < fEmisslim[1] &&
-            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] &&
-            *dphi > fdphilim[0]  &&  *dphi < fdphilim[1] &&
-             *m3g > fmasslim[0]  &&   *m3g < fmasslim[1] )
+            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] )
       {
-         fNgenerated += 1;
+         double wgt_dphi, wgt_m3g;
+         if (*dphi > fdphilim[0]  &&  *dphi < fdphilim[1])
+            wgt_dphi = 1;
+         else if (*dphi > fdphiban[0]  &&  *dphi < fdphiban[1])
+            wgt_dphi = -fdphibanwgt;
+         else
+            wgt_dphi = 0;
+         if (*m3g > fmasslim[0]  &&   *m3g < fmasslim[1])
+            wgt_m3g = 1;
+         else if (*m3g > fmassban[0]  &&   *m3g < fmassban[1])
+            wgt_m3g = -fmassbanwgt;
+         else
+            wgt_m3g = 0;
+         fNgenerated += *weight * wgt_dphi * wgt_m3g;
          // There are excessive statistics in this chain, no need
          // to count beyond 1M to know the normalization to 0.1%.
          if (fNgenerated > 1000000) {
@@ -132,12 +157,24 @@ void mlfitter::LoadNormInt()
    while (fReader.Next()) {
       if ( *Ebeam > fEbeamlim[0] && *Ebeam < fEbeamlim[1] &&
            *Emiss > fEmisslim[0] && *Emiss < fEmisslim[1] &&
-            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] &&
-            *dphi > fdphilim[0]  &&  *dphi < fdphilim[1] &&
-             *m3g > fmasslim[0]  &&   *m3g < fmasslim[1] )
+            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] )
       {
+         double wgt_dphi, wgt_m3g;
+         if (*dphi > fdphilim[0]  &&  *dphi < fdphilim[1])
+            wgt_dphi = 1;
+         else if (*dphi > fdphiban[0]  &&  *dphi < fdphiban[1])
+            wgt_dphi = -fdphibanwgt;
+         else
+            wgt_dphi = 0;
+         if (*m3g > fmasslim[0]  &&   *m3g < fmasslim[1])
+            wgt_m3g = 1;
+         else if (*m3g > fmassban[0]  &&   *m3g < fmassban[1])
+            wgt_m3g = -fmassbanwgt;
+         else
+            wgt_m3g = 0;
          int ibin = fRfunction->FindBin(*costhetahel, *phihel);
-         double wR = *weight * fRfunction->GetBinContent(ibin);
+         double Rvalue = fRfunction->GetBinContent(ibin);
+         double wR = *weight * wgt_dphi * wgt_m3g * Rvalue;
          fNormInt11 += W11(*costhetahel, *phihel) * wR / fNgenerated;
          fNormInt00 += W00(*costhetahel, *phihel) * wR / fNgenerated;
          fNormInt1m += W1m(*costhetahel, *phihel) * wR / fNgenerated;
@@ -155,6 +192,11 @@ void mlfitter::LoadNormInt()
 
 void mlfitter::ApplyCosthetaCut(double costlim0, double costlim1)
 {
+   // Set the value of the R function to zero in any bins on the
+   // costhetahel,phihel plane outside the range (costlim0, costlim1).
+   // After the R function is changed, LoadNormInt() and LoadRealData()
+   // need to be invoked again.
+
    if (fRfunction == 0)
       ClearRfunction();
 
@@ -165,15 +207,15 @@ void mlfitter::ApplyCosthetaCut(double costlim0, double costlim1)
          for (int j=1; j <= nbins_phi; ++j)
             fRfunction->SetBinContent(i, j, 0);
    }
-
-   if (fNormInt11 != 0 || fSample.size() > 0)
-      std::cout << "R function changed, to use it you must now invoke"
-                << " LoadNormInt() and LoadRealData() again to use it!"
-                << std::endl;
 }
 
 void mlfitter::ApplyAcceptanceThreshold(double acclim0)
 {
+   // Set the value of the R function to zero in any bins on the
+   // costhetahel,phihel plane where the acceptance drops below
+   // some threshold value acclim0. After the R function is changed
+   // LoadNormInt() and LoadRealData() need to be invoked again.
+
    if (fRfunction == 0)
       ClearRfunction();
    if (fHaccept == 0)
@@ -188,11 +230,6 @@ void mlfitter::ApplyAcceptanceThreshold(double acclim0)
             fRfunction->SetBinContent(i, j, 0);
       }
    }
-
-   if (fNormInt11 != 0 || fSample.size() > 0)
-      std::cout << "R function changed, to use it you must now invoke"
-                << " LoadNormInt() and LoadRealData() again to use it!"
-                << std::endl;
 }
 
 void mlfitter::LoadRealData(int nevents, int nstart)
@@ -212,27 +249,34 @@ void mlfitter::LoadRealData(int nevents, int nstart)
    }
 
    // create weight histograms if not already existing
-   TString hweight;
    if (fHavewgt == 0) {
-      for (int n=0; n < 99999; ++n) {
-         hweight.Form("hwgt1_%d", n);
-         if (gROOT->FindObject(hweight) == 0)
+      TString hname;
+      int n;
+      for (n=0; n < 99999; ++n) {
+         hname.Form("hwgt1_%d", n);
+         if (gROOT->FindObject(hname) == 0)
             break;
       }
-      fHavewgt = new TH2D(hweight, "average weight on phi vs cos(theta)",
+      fHavewgt = new TH2D(hname, "average weight on phi vs cos(theta)",
                           nbins_cost, -1, 1, nbins_phi, -M_PI, M_PI);
+      fHavewgt->SetStats(0);
       fHavewgt->Sumw2();
-      for (int n=0; n < 99999; ++n) {
-         hweight.Form("hwgt2_%d", n);
-         if (gROOT->FindObject(hweight) == 0)
-            break;
-      }
-      fHavewgt2 = new TH2D(hweight, "average weight**2 on phi vs cos(theta)",
+      hname.Form("hwgt2_%d", n);
+      fHavewgt2 = new TH2D(hname, "average weight**2 on phi vs cos(theta)",
                            nbins_cost, -1, 1, nbins_phi, -M_PI, M_PI);
+      fHavewgt2->SetStats(0);
       fHavewgt2->Sumw2();
+      hname.Form("hm3g_%d", n);
+      fHm3g = new TH1D(hname, "3gamma mass spectrum", 150, 0, 1.5);
+      fHm3g->Sumw2();
+      hname.Form("hdphi_%d", n);
+      fHdphi = new TH1D(hname, "delta phi", 90, -180., 180.);
+      fHdphi->Sumw2();
    }
    fHavewgt->Reset();
    fHavewgt2->Reset();
+   fHm3g->Reset();
+   fHdphi->Reset();
 
    // now load the real data
    fChain = ChainRealData(expdata_templ);
@@ -245,24 +289,40 @@ void mlfitter::LoadRealData(int nevents, int nstart)
          continue;
       else if (nevents > 0 && nrows > nstart + nevents)
          break;
+      int ibin = fRfunction->FindBin(*costhetahel, *phihel);
+      double Rvalue = fRfunction->GetBinContent(ibin);
       if ( *Ebeam > fEbeamlim[0] && *Ebeam < fEbeamlim[1] &&
            *Emiss > fEmisslim[0] && *Emiss < fEmisslim[1] &&
-            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] &&
-            *dphi > fdphilim[0]  &&  *dphi < fdphilim[1] &&
-             *m3g > fmasslim[0]  &&   *m3g < fmasslim[1] )
+            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] )
       {
+         double wgt_dphi, wgt_m3g;
+         if (*dphi > fdphilim[0]  &&  *dphi < fdphilim[1])
+            wgt_dphi = 1;
+         else if (*dphi > fdphiban[0]  &&  *dphi < fdphiban[1])
+            wgt_dphi = -fdphibanwgt;
+         else
+            wgt_dphi = 0;
+         if (*m3g > fmasslim[0]  &&   *m3g < fmasslim[1])
+            wgt_m3g = 1;
+         else if (*m3g > fmassban[0]  &&   *m3g < fmassban[1])
+            wgt_m3g = -fmassbanwgt;
+         else
+            wgt_m3g = 0;
          struct event_t datarow;
          datarow.W11 = W11(*costhetahel, *phihel);
          datarow.W00 = W00(*costhetahel, *phihel);
          datarow.W1m = W1m(*costhetahel, *phihel);
          datarow.W10 = W10(*costhetahel, *phihel);
-         int ibin = fRfunction->FindBin(*costhetahel, *phihel);
-         datarow.R = fRfunction->GetBinContent(ibin);
-         datarow.wgt = *weight;
+         datarow.wgt = *weight * wgt_dphi * wgt_m3g;
+         datarow.R = Rvalue;
          fSample.push_back(datarow);
-         sum_weights += datarow.R * datarow.wgt;
-         fHavewgt->Fill(*costhetahel, *phihel, *weight);
-         fHavewgt2->Fill(*costhetahel, *phihel, pow(*weight, 2));
+         sum_weights += datarow.wgt * datarow.R;
+         fHavewgt->Fill(*costhetahel, *phihel, datarow.wgt);
+         fHavewgt2->Fill(*costhetahel, *phihel, pow(datarow.wgt, 2));
+         if (*dphi > fdphilim[0]  &&  *dphi < fdphilim[1])
+            fHm3g->Fill(*m3g, datarow.wgt * datarow.R);
+         if (*m3g > fmasslim[0]  &&   *m3g < fmasslim[1])
+            fHdphi->Fill(*dphi, datarow.wgt * datarow.R);
       }
    }
    std::cout << "total events loaded is " << fSample.size()
@@ -275,7 +335,8 @@ void mlfitter::LoadRfunction()
 {
    // Compute the R function from Havewgt and Havewgt2
    // assuming that both of these exist, otherwise print
-   // an error and exit.
+   // an error and exit. After the R function is changed
+   // LoadNormInt() and LoadRealData() need to be invoked again.
 
    if (fHavewgt == 0 || fHavewgt2 == 0 || fRfunction == 0) {
       std::cerr << "Error in LoadRfunction: you must load real data"
@@ -294,18 +355,14 @@ void mlfitter::LoadRfunction()
             fRfunction->SetBinContent(i, j, 0);
       }
    }
-   std::cout << "R function is now loaded. To use it, you now need to"
-             << std::endl
-             << "reload both Monte Carlo (LoadNormInt) and real data"
-             << std::endl
-             << "(LoadRealData) before attempting any fits."
-             << std::endl;
 }
 
 void mlfitter::ClearRfunction()
 {
    // If Rfunction histogram does not exist, create a new one;
-   // either way, set the contents of all bins to unity.
+   // either way, set the contents of all bins to unity. After
+   // the R function is changed, LoadNormInt() and LoadRealData()
+   // need to be invoked again.
 
    if (fRfunction == 0) {
       TString hrfunc;
@@ -316,20 +373,23 @@ void mlfitter::ClearRfunction()
       }
       fRfunction = new TH2D(hrfunc, "R function on phi vs cos(theta)",
                             nbins_cost, -1, 1, nbins_phi, -M_PI, M_PI);
+      fRfunction->SetStats(0);
    }
+   fRfunction->Reset();
 
    for (int i=1; i <= nbins_cost; ++i)
       for (int j=1; j <= nbins_phi; ++j)
          fRfunction->SetBinContent(i, j, 1);
-
-   if (fNormInt11 != 0 || fSample.size() > 0)
-      std::cout << "R function changed, to use it you must now invoke"
-                << " LoadNormInt() and LoadRealData() again to use it!"
-                << std::endl;
 }
 
 TMinuit *mlfitter::GetMinuit()
 {
+   // Initialize the Minuit search engine and attach it to this object,
+   // or return the existing one, if it already exists.
+
+   if (fMinuit)
+      return fMinuit;
+
    fMinuit = new TMinuit(4);
    fMinuit->SetFCN(FCN);
 
@@ -341,7 +401,7 @@ TMinuit *mlfitter::GetMinuit()
    double stepsize = 1.e-4;
    fMinuit->mnparm(0, "rho11", fLastParam[0], stepsize, 0, 0, ierflg);
    fMinuit->mnparm(1, "rho00", fLastParam[1], stepsize, 0, 0, ierflg);
-   fMinuit->mnparm(2, "rho1m", fLastParam[2], stepsize, 0, 0, ierflg);
+   fMinuit->mnparm(2, "rho1M", fLastParam[2], stepsize, 0, 0, ierflg);
    fMinuit->mnparm(3, "rho10", fLastParam[3], stepsize, 0, 0, ierflg);
 
    // set default values for other parameters
@@ -426,7 +486,7 @@ double mlfitter::W00(double costheta, double phi) const
 
 double mlfitter::W1m(double costheta, double phi) const
 {
-   // The decay angular distribution that goes with rho1m.
+   // The decay angular distribution that goes with rho1M.
 
    return 3 / (8 * M_PI) * (1 - costheta * costheta) * cos(2 * phi);
 }
@@ -439,7 +499,7 @@ double mlfitter::W10(double costheta, double phi) const
           sqrt(8 * (1 - costheta * costheta)) * cos(phi);
 }
 
-double mlfitter::GetFCN(double rho11, double rho00, double rho1m, double rho10)
+double mlfitter::GetFCN(double rho11, double rho00, double rho1M, double rho10)
 {
    // This is the core method of the mlfitter class. It computes
    // the likelihood of the data for the given model parameters
@@ -449,7 +509,7 @@ double mlfitter::GetFCN(double rho11, double rho00, double rho1m, double rho10)
    fLastFCN = 0;
    fLastParam[0] = rho11;
    fLastParam[1] = rho00;
-   fLastParam[2] = rho1m;
+   fLastParam[2] = rho1M;
    fLastParam[3] = rho10;
    for (int i=0; i < 4; i++) {
       fLastGradient[i] = 0;
@@ -459,10 +519,17 @@ double mlfitter::GetFCN(double rho11, double rho00, double rho1m, double rho10)
    }
 
    // Do the log sum over real events
+   long int nrow = 0;
    std::vector<struct event_t>::const_iterator iter;
-   for (iter = fSample.begin(); iter != fSample.end(); ++iter) {
+   for (iter = fSample.begin(); iter != fSample.end(); ++iter, ++nrow) {
+      if (fParts > 1 && ((fPart > 0 && nrow % fParts != fPart - 1) ||
+                         (fPart < 0 && nrow % fParts == -fPart - 1)))
+      {
+         continue;
+      }
+      
       double a = rho11 * iter->W11 + rho00 * iter->W00 +
-                 rho1m * iter->W1m + rho10 * iter->W10 + 1e-99;
+                 rho1M * iter->W1m + rho10 * iter->W10 + 1e-99;
       // compress negative values for a into the range [0,fWlowcut]
       double dlogada = 1 / a;
       double d2logada2 = -1 / (a*a);
@@ -491,7 +558,7 @@ double mlfitter::GetFCN(double rho11, double rho00, double rho1m, double rho10)
 
    // Apply the normalization
    fLastFCN += rho11 * fNormInt11 + rho00 * fNormInt00 +
-               rho1m * fNormInt1m + rho10 * fNormInt10;
+               rho1M * fNormInt1m + rho10 * fNormInt10;
    fLastGradient[0] += fNormInt11;
    fLastGradient[1] += fNormInt00;
    fLastGradient[2] += fNormInt1m;
@@ -501,7 +568,7 @@ double mlfitter::GetFCN(double rho11, double rho00, double rho1m, double rho10)
    // by checking that all rulecheck variables are non-negative.
    double rulecheck1 = rho11;
    double rulecheck2 = rho00;
-   double rulecheck3 = rho11 * rho11 - rho1m * rho1m;
+   double rulecheck3 = rho11 * rho11 - rho1M * rho1M;
    double rulecheck4 = rho11 * rho00 - rho10 * rho10;
    if (fRule1 > 0) {
       double barrier = exp(-fRule1 * rulecheck1);
@@ -519,11 +586,11 @@ double mlfitter::GetFCN(double rho11, double rho00, double rho1m, double rho10)
       double barrier = exp(-fRule3 * rulecheck3);
       fLastFCN += barrier;
       fLastGradient[0] += -fRule3 * barrier * (+2 * rho11);
-      fLastGradient[2] += -fRule3 * barrier * (-2 * rho1m);
+      fLastGradient[2] += -fRule3 * barrier * (-2 * rho1M);
       fLastHesse[0][0] += fRule3 * fRule3 * barrier * (4 * rho11 * rho11) -
                           fRule3 * barrier * 2;
-      fLastHesse[0][2] += fRule3 * fRule3 * barrier * (-4 * rho11 * rho1m);
-      fLastHesse[2][2] += fRule3 * fRule3 * barrier * (4 * rho1m * rho1m) +
+      fLastHesse[0][2] += fRule3 * fRule3 * barrier * (-4 * rho11 * rho1M);
+      fLastHesse[2][2] += fRule3 * fRule3 * barrier * (4 * rho1M * rho1M) +
                           fRule3 * barrier * 2;
    }
    if (fRule4 > 0) {
@@ -585,21 +652,30 @@ TH2D *mlfitter::GenerateDataPlot(const TString &hname)
    if (h2 == 0) {
       h2 = new TH2D(hname, "measured omega decay phi vs cos(theta)",
                     nbins_cost, -1, 1, nbins_phi, -M_PI, M_PI);
+      h2->Sumw2();
    }
-   else {
-      h2->Reset();
-   }
-   h2->Sumw2();
+   h2->Reset();
    fChain = ChainRealData(expdata_templ);
    fReader.SetTree(fChain);
    while (fReader.Next()) {
       if ( *Ebeam > fEbeamlim[0] && *Ebeam < fEbeamlim[1] &&
            *Emiss > fEmisslim[0] && *Emiss < fEmisslim[1] &&
-            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] &&
-            *dphi > fdphilim[0]  &&  *dphi < fdphilim[1] &&
-             *m3g > fmasslim[0]  &&   *m3g < fmasslim[1] )
+            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] )
       {
-         h2->Fill(*costhetahel, *phihel, *weight);
+         double wgt_dphi, wgt_m3g;
+         if (*dphi > fdphilim[0]  &&  *dphi < fdphilim[1])
+            wgt_dphi = 1;
+         else if (*dphi > fdphiban[0]  &&  *dphi < fdphiban[1])
+            wgt_dphi = -fdphibanwgt;
+         else
+            wgt_dphi = 0;
+         if (*m3g > fmasslim[0]  &&   *m3g < fmasslim[1])
+            wgt_m3g = 1;
+         else if (*m3g > fmassban[0]  &&   *m3g < fmassban[1])
+            wgt_m3g = -fmassbanwgt;
+         else
+            wgt_m3g = 0;
+         h2->Fill(*costhetahel, *phihel, *weight * wgt_dphi * wgt_m3g);
       }
    }
    return h2;
@@ -616,30 +692,60 @@ TH2D *mlfitter::GenerateFitModel(const TString &hname)
    if (h2 == 0) {
       h2 = new TH2D(hname, "model omega decay phi vs cos(theta)",
                     nbins_cost, -1, 1, nbins_phi, -M_PI, M_PI);
+      h2->Sumw2();
    }
-   else {
-      h2->Reset();
-   }
-   h2->Sumw2();
+   h2->Reset();
 
    fChain = ChainMCsim(mcsim_templ);
    fReader.SetTree(fChain);
    while (fReader.Next()) {
       if ( *Ebeam > fEbeamlim[0] && *Ebeam < fEbeamlim[1] &&
            *Emiss > fEmisslim[0] && *Emiss < fEmisslim[1] &&
-            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] &&
-            *dphi > fdphilim[0]  &&  *dphi < fdphilim[1] &&
-             *m3g > fmasslim[0]  &&   *m3g < fmasslim[1] )
+            *tabs > ftabslim[0]  &&  *tabs < ftabslim[1] )
       {
+         double wgt_dphi, wgt_m3g;
+         if (*dphi > fdphilim[0]  &&  *dphi < fdphilim[1])
+            wgt_dphi = 1;
+         else if (*dphi > fdphiban[0]  &&  *dphi < fdphiban[1])
+            wgt_dphi = -fdphibanwgt;
+         else
+            wgt_dphi = 0;
+         if (*m3g > fmasslim[0]  &&   *m3g < fmasslim[1])
+            wgt_m3g = 1;
+         else if (*m3g > fmassban[0]  &&   *m3g < fmassban[1])
+            wgt_m3g = -fmassbanwgt;
+         else
+            wgt_m3g = 0;
+         double wgt_prod = *weight * wgt_dphi * wgt_m3g;
          int ibin = fRfunction->FindBin(*costhetahel, *phihel);
          double W = GetW(*costhetahel, *phihel);
-         h2->Fill(*costhetahel, *phihel, *weight * W / fNgenerated);
+         h2->Fill(*costhetahel, *phihel, wgt_prod * W / fNgenerated);
       }
    }
    return h2;
 }
 
-void mlfitter::RandomizeParams()
+void mlfitter::PartitionEvents(int part, int parts)
+{
+   // Tell the fitter which subset of events in the real dataset
+   // should be included in the fits. The events are divided into
+   // "parts" equal subsets. If part is in the range [1,parts]
+   // then events in subset "part" are included. If part is negative
+   // then all events are included EXCEPT those in partition |part|.
+   // Values of |part| less than 1 or greater than parts are illegal.
+
+   if (parts == 0 or abs(part) == 0 or abs(part) > parts) {
+      std::cerr << "Error in PartitionEvents - combination"
+                << " part=" << part << " parts=" << parts
+                << " is not supported, command ignored!"
+                << std::endl;
+      return;
+   }
+   fParts = parts;
+   fPart = part;
+}
+
+void mlfitter::RandomizeParams(double scale)
 {
    // Generate random values for the model parameters
    // and call GetFCN to compute the model distribution
@@ -648,14 +754,13 @@ void mlfitter::RandomizeParams()
    // parameter, or unity if the last value is zero.
 
    double par[4];
-   double pscale = fLastParam[0] + fLastParam[1];
    for (int i=0; i < 4; ++i) {
       par[i] = fRandom->Rndm();
-      if (pscale > 0) {
+      if (scale > 0) {
          if (i < 2)
-            par[i] = (2*par[i]) * pscale;
+            par[i] = par[i] * scale;
          else
-            par[i] = (2*par[i] - 1) * pscale;
+            par[i] = (par[i] - 0.5) * scale/10.;
       }
       Do("SET PAR", i+1 , par[i]);
    }
@@ -743,8 +848,14 @@ void mlfitter::Print() const
                                << ftabslim[1] << std::endl
              << "mass_limits: " << fmasslim[0] << " "
                                << fmasslim[1] << std::endl
+             << "mass_sidebands: " << fmassban[0] << " "
+                               << fmassban[1] << " "
+                               << fmassbanwgt << std::endl
              << "dphi_limits: " << fdphilim[0] << " "
                                << fdphilim[1] << std::endl
+             << "dphi_sidebands: " << fdphiban[0] << " "
+                               << fdphiban[1] << " "
+                               << fdphibanwgt << std::endl
              << std::endl;
 
    double sum_weights = 0;
@@ -755,6 +866,8 @@ void mlfitter::Print() const
 
    std::cout << "real events loaded: " << fSample.size()
              << ", " <<  sum_weights << " weighted" << std::endl;
+   std::cout << "selected partition: " << fPart
+             << " out of " << fParts << std::endl;
    std::cout << "normalization integrals: " << fNormInt11 << " "
              << fNormInt00 << " " << fNormInt1m << " "
              << fNormInt10 << std::endl;
@@ -813,8 +926,14 @@ void mlfitter::SaveState(const char* filename) const
                               << ftabslim[1] << std::endl
             << "mass_limits: " << fmasslim[0] << " "
                               << fmasslim[1] << std::endl
+            << "mass_sidebands: " << fmassban[0] << " "
+                              << fmassban[1] << " "
+                              << fmassbanwgt << std::endl
             << "dphi_limits: " << fdphilim[0] << " "
-                              << fdphilim[1] << std::endl;
+                              << fdphilim[1] << std::endl
+            << "dphi_sidebands: " << fdphiban[0] << " "
+                              << fdphiban[1] << " "
+                              << fdphibanwgt << std::endl;
    }
    else {
       std::cerr << "Error in SaveState: could not open file "
@@ -857,6 +976,12 @@ void mlfitter::RestoreState(const char* filename)
             fsave >> ftabslim[0] >> ftabslim[1];
          else if (key == "mass_limits:")
             fsave >> fmasslim[0] >> fmasslim[1];
+         else if (key == "mass_sidebands:")
+            fsave >> fmassban[0] >> fmassban[1] >> fmassbanwgt;
+         else if (key == "dphi_limits:")
+            fsave >> fdphilim[0] >> fdphilim[1];
+         else if (key == "dphi_sidebands:")
+            fsave >> fdphiban[0] >> fdphiban[1] >> fdphibanwgt;
       }
    }
    else {

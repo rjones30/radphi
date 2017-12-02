@@ -45,6 +45,8 @@ class mlfitter {
    int Do(const char *cmd, double arg1, double arg2, double arg3);
    int Do(const char *cmd, double arg1, double arg2, double arg3, double arg4);
    int Fit(int redundancy=2, int maxtries=9);
+   void PartitionEvents(int part=1, int parts=1);
+   void RandomizeParams(double scale=1e6);
 
    double GetW(double costheta, double phi) const;
    double W11(double costheta, double phi) const;
@@ -69,8 +71,12 @@ class mlfitter {
    void SetLimits_Ebeam(double Ebeamlim0, double Ebeamlim1);
    void SetLimits_Emiss(double Emisslim0, double Emisslim1);
    void SetLimits_tabs(double tlim0, double tlim1);
-   void SetLimits_mass(double masslim0, double masslim1);
-   void SetLimits_dphi(double dphilim0, double dphilim1);
+   void SetLimits_mass(double masslim0, double masslim1,
+                       double massban0=0, double massban1=0,
+                       double massbanw=1.);
+   void SetLimits_dphi(double dphilim0, double dphilim1,
+                       double dphiban0=0, double dphiban1=0,
+                       double dphibanw=1.);
    
    double GetR(double costheta, double phi) const;
    double GetA(double costheta, double phi) const;
@@ -78,7 +84,6 @@ class mlfitter {
    TH2D *GenerateDataPlot(const TString &hname);
    TH2D *GenerateFitModel(const TString &hname);
 
-   void RandomizeParams();
    void LoadRfunction();
    void ClearRfunction();
    void ApplyCosthetaCut(double costlim0, double costlim1);
@@ -115,7 +120,7 @@ class mlfitter {
    // it causes a crash in Root 6.08 so until this is fixed, comment it.
    static /*thread_local*/ mlfitter *fFitter;
 
-   // Fit parameters are ordered: rho11, rho00, rho1m, rho10
+   // Fit parameters are ordered: rho11, rho00, rho1M, rho10
    double fLastFCN = 0;
    double fLastParam[4] = {0};
    double fLastGradient[4] = {0};
@@ -123,8 +128,16 @@ class mlfitter {
    double fEbeamlim[2];
    double fEmisslim[2];
    double ftabslim[2];
-   double fmasslim[2];
    double fdphilim[2];
+   double fdphiban[2];
+   double fdphibanwgt;
+   double fmasslim[2];
+   double fmassban[2];
+   double fmassbanwgt;
+
+   // Dataset partitioning parameters
+   int fPart = 1;
+   int fParts = 1;
 
    std::vector<struct event_t> fSample;
    double fNormInt11 = 0;
@@ -136,6 +149,8 @@ class mlfitter {
    TH2D *fHavewgt = 0;
    TH2D *fHavewgt2 = 0;
    TH2D *fRfunction = 0;
+   TH1D *fHm3g = 0;
+   TH1D *fHdphi = 0;
 
    TTree *fChain = 0;
    TTreeReader fReader;
@@ -202,14 +217,38 @@ inline void mlfitter::SetLimits_Emiss(double Emisslim0, double Emisslim1) {
    fEmisslim[1] = Emisslim1;
 }
 
-inline void mlfitter::SetLimits_mass(double masslim0, double masslim1) {
+inline void mlfitter::SetLimits_mass(double masslim0, double masslim1,
+                                     double massban0, double massban1,
+                                     double massbanw)
+{
    fmasslim[0] = masslim0;
    fmasslim[1] = masslim1;
+   if (massban0 !=0 || massban1 != 0) {
+      fmassban[0] = massban0;
+      fmassban[1] = massban1;
+   }
+   else {
+      fmassban[0] = masslim0;
+      fmassban[1] = masslim1;
+   }
+   fmassbanwgt = massbanw;
 }
 
-inline void mlfitter::SetLimits_dphi(double dphilim0, double dphilim1) {
+inline void mlfitter::SetLimits_dphi(double dphilim0, double dphilim1,
+                                     double dphiban0, double dphiban1,
+                                     double dphibanw)
+{
    fdphilim[0] = dphilim0;
    fdphilim[1] = dphilim1;
+   if (dphiban0 != 0 || dphiban1 != 0) {
+      fdphiban[0] = dphiban0;
+      fdphiban[1] = dphiban1;
+   }
+   else {
+      fdphiban[0] = dphilim0;
+      fdphiban[1] = dphilim1;
+   }
+   fdphibanwgt = dphibanw;
 }
 
 inline double mlfitter::GetR(double costheta, double phi) const {
